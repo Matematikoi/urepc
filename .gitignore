@@ -1,4 +1,5 @@
 *.pdf
+./books/*
 
 # History files
 .Rhistory
