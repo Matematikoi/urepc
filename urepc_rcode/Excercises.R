@@ -319,6 +319,7 @@ ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) +
 
 ggplot(data = mpg, mapping = aes(x = drv, y = hwy,fill=class)) +
   geom_boxplot()
+
   
 # the default position is dodge
 
@@ -326,11 +327,7 @@ ggplot(data = mpg, mapping = aes(x = drv, y = hwy,fill=class)) +
 
 #3.9.1
 #1. Turn a stacked bar chart into a pie chart using coord_polar().
-ggplot(data = diamonds) + 
-  geom_bar(mapping = aes(x = 1, fill = color, width =color),show.legend = TRUE, width=1,position="dodge", ) 
-  theme(aspect.ratio = 1) +
-  labs(x = NULL, y = NULL)+
-  coord_polar()
+
 # a little weird, 
 
 #2. What does labs() do? Read the documentation.
@@ -344,10 +341,114 @@ ggplot(data = diamonds) +
   
 #4. What does the plot below tell you about the relationship between city 
 # and highway mpg? Why is coord_fixed() important? What does geom_abline() do?
-  
-  
 
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) +
+  geom_point() + 
+  geom_abline() +
+  coord_fixed()
+# geom abline adds an f(x)=x line, and coord fixed allows that the line makes 
+# sense
 
+#4.4 Exercises
+
+#Why does this code not work?
+
+my_variable <- 10
+my_varıable
+#> Error in eval(expr, envir, enclos): object 'my_varıable' not found
+# Typo
+
+#Tweak each of the following R commands so that they run correctly:
+library(tidyverse)
+
+ggplot(dota = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy))
+
+fliter(mpg, cyl = 8)
+filter(diamond, carat > 3)
+#solution
+library("tidyverse")
+
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy))
+
+filter(mpg, cyl == 8)
+filter(diamonds, carat > 3)
+  
+#CHAPTER 5
+
+#1. Find all flights that
+
+#Had an arrival delay of two or more hours
+filter(flights,arr_delay>120)
+
+#Flew to Houston (IAH or HOU)
+filter(flights, dest == "HOU" | dest == "IAH" )
+
+#Were operated by United, American, or Delta
+filter(flights, carrier == "UA" | carrier == "AA" | carrier == "DL" )
+filter( flights, carrier %in% c ("UA","AA","DL"))
+#Departed in summer (July, August, and September)
+filter( flights, month %in% c (7,8,9))
+#Arrived more than two hours late, but didn’t leave late
+filter(flights, arr_delay>120, dep_delay <= 0)
+#Were delayed by at least an hour, but made up over 30 minutes in flight
+filter(flights, dep_delay >= 60, dep_delay - arr_delay >= 30 )
+
+#Departed between midnight and 6am (inclusive
+filter(flights, hour <= 5 | (hour == 6 & minute == 0))
+
+#2. Another useful dplyr filtering helper is between(). 
+# What does it do? Can you use it to simplify the code needed to answer 
+# the previous challenges?
+?between
+#we can abreviate the months
+filter(flights,between(month,7,9))
+
+# 3.How many flights have a missing dep_time? What other variables are missing? 
+# What might these rows represent?
+View(filter(flights,is.na(dep_time)))
+# a lot of data missing too, this are probably canceled flights
+
+# 4. Why is NA ^ 0 not missing? Why is NA | TRUE not missing? Why is FALSE 
+# & NA not missing? Can you figure out the general rule? 
+# (NA * 0 is a tricky counterexample!)
+
+# it works with boolean when & and | are used as a FALSE. In arithmetic it 
+# always gives NA except NA ^ 0
+
+#5.3.1 Exercises
+
+#1. How could you use arrange() to sort all missing values to the start? 
+# (Hint: use is.na()).
+(arrange(flights, desc(is.na(dep_time))))
+
+#2. Sort flights to find the most delayed flights. 
+# Find the flights that left earliest.
+arrange(flights, desc(dep_delay))
+arrange(flights, dep_delay)
+# a flight that left 43 minutes before!
+
+#3. Sort flights to find the fastest (highest speed) flights.
+
+View(arrange(flights, desc(distance/air_time)))
+ # fastest one was going 700 miles per hour!!!
+
+#4. Which flights travelled the farthest? Which travelled the shortest?
+View(arrange(flights, desc(distance)))
+
+# Furthest one is from JFK to Hawaii! Closest one is Newark to philadelphia!.
+
+#5.4.1 Exercises
+#1. Brainstorm as many ways as possible to select dep_time, dep_delay, 
+# arr_time, and arr_delay from flights.
+select(flights, "dep_time", "dep_delay", "arr_time", "arr_delay")
+select(flights, ends_with("delay"), starts_with("arr_"), "dep_time")
+
+#2. What happens if you include the name of a variable multiple times 
+# in a select() call?
+select(flights,"dep_time", "dep_time")
+# it does the smart thing of including it only once.
 
 
 

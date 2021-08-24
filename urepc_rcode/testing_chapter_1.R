@@ -137,10 +137,13 @@ bar <- ggplot(data = diamonds) +
 bar + coord_flip()
 bar + coord_polar()
 
-x <- 
 
+#Libraries for chapter 5
+library(nycflights13)
+library(tidyverse)
 
-
+#FILTER
+filter(flights, month == 1, day == 1)
 
 
 
