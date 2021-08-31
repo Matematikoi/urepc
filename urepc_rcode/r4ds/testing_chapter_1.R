@@ -146,6 +146,10 @@ library(tidyverse)
 filter(flights, month == 1, day == 1)
 
 
+# get the density
+ggplot(data = diamonds, mapping = aes(x = price, y = ..density..)) + 
+  geom_freqpoly(mapping = aes(colour = cut), binwidth = 500)
+
 
 
 
