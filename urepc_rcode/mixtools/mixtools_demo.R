@@ -7,13 +7,8 @@ ggplot(data = faithful, mapping = aes(x=waiting))+
 #using the normalmixEM to identify the mixture
 wait1 <- normalmixEM(
   x = faithful[,"waiting"], 
-  lambda = .5, 
-  mu = c(55, 80), 
-  sigma = 5
   )
 
-plot(wait1, density=TRUE, cex.axis=1.4, cex.lab=1.4, cex.main=1.8, + 
-       main2="Time between Old Faithful eruptions", xlab2="Minutes")
 
 index = seq(1,lengths(wait1["all.loglik"]))
 df = data.frame(wait1["all.loglik"],index)
@@ -21,6 +16,36 @@ ggplot( data = df, mapping = aes(y=all.loglik, x = index))+
   geom_line()
 
 
-#plotting the normal curves. 
+#plotting the normal distributions 
+
+ggplot(data = faithful, mapping = aes(x=waiting))+
+  geom_histogram(aes(y =..density..),binwidth = 1)+
+  geom_function(fun = function(x) wait1[["lambda"]][1]*dnorm(
+                  x,mean = wait1[["mu"]][1], sd = wait1[["sigma"]][1]),
+                color = "red",
+                size = 3)+
+  geom_function(fun = function(x) wait1[["lambda"]][2]*dnorm(
+                  x,mean = wait1[["mu"]][2], sd = wait1[["sigma"]][2]),
+                color = "green",
+                size = 3)
+
+#getting a summary
+summary(wait1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
