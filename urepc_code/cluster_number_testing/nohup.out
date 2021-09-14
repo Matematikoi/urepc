@@ -1,0 +1,10 @@
+Unable to find gconftool-2.  The mendeley:// link handler may not be installed correctly.
+Mendeley Desktop will run normally. Some Web interactions might not work as expected (e.g. CSL Editor Save).
+Install the package gconf2 to fix it. E.g. 'sudo apt-get install gconf2' or 'sudo yum install gconf2'.
+/home/gabriel/Downloads/mendeleydesktop-1.19.8-linux-x86_64/bin/..//bin/install-mendeley-link-handler.sh: 76: : Permission denied
+/home/gabriel/Downloads/mendeleydesktop-1.19.8-linux-x86_64/bin/..//bin/install-mendeley-link-handler.sh: 77: : Permission denied
+"No such interface “org.freedesktop.DBus.Properties” on object at path /org/freedesktop/NetworkManager/ActiveConnection/8"
+"No such interface “org.freedesktop.DBus.Properties” on object at path /org/freedesktop/NetworkManager/ActiveConnection/8"
+finishImport: adding 1 documents to database took 1.20483 ms
+finishImport: adding 1 documents to database took 2.00797 ms
+"No such interface “org.freedesktop.DBus.Properties” on object at path /org/freedesktop/NetworkManager/ActiveConnection/10"
