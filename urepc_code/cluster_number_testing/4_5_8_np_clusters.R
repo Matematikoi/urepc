@@ -8,7 +8,7 @@ data = read.csv(
 data <- data.frame(lapply(data[,-1], as.numeric), row.names = data[,1])
 
 start_time <- Sys.time()
-mix <- npEM(data, 5 , samebw = FALSE ,verb = TRUE,maxiter = 500)
+mix <- npEM(data, 5 , samebw = FALSE ,verb = TRUE,maxiter = 1000)
 end_time <- Sys.time()
 
 print(end_time-start_time)
