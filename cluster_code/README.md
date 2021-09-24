@@ -11,4 +11,10 @@ To send a program to run use
 
 Or use an interactive session for five minutes
 `interactive -A statdept -n 1 -N 1 -t 00:05:00`
- 
+
+To read arguments in R use 
+`invisible(eval(parse(text=commandArgs(TRUE))))` 
+inside the R script
+
+And invoke the R script using 
+`Rscript code/example_arguments.R a=7 b=21` 
