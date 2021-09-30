@@ -1,0 +1,8 @@
+#!/bin/bash
+
+
+for dataset in $(ls ./data/cluster_selection):
+do
+	Rscript code/cluster_selection.R "name='./data/cluster_selection/$dataset'" max_selection=15 max_iteration=1
+done
+
