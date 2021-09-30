@@ -1,0 +1,12 @@
+Unable to find gconftool-2.  The mendeley:// link handler may not be installed correctly.
+Mendeley Desktop will run normally. Some Web interactions might not work as expected (e.g. CSL Editor Save).
+Install the package gconf2 to fix it. E.g. 'sudo apt-get install gconf2' or 'sudo yum install gconf2'.
+/home/gabriel/Downloads/mendeleydesktop-1.19.8-linux-x86_64/bin/..//bin/install-mendeley-link-handler.sh: 76: : Permission denied
+/home/gabriel/Downloads/mendeleydesktop-1.19.8-linux-x86_64/bin/..//bin/install-mendeley-link-handler.sh: 77: : Permission denied
+QFSFileEngine::open: No file name specified
+Opening in existing browser session.
+[27249:27249:0100/000000.441599:ERROR:sandbox_linux.cc(374)] InitializeSandbox() called with multiple threads in process gpu-process.
+QIODevice::read (QDisabledNetworkReply): device not open
+[19587:19587:0923/150351.462899:ERROR:zygote_communication_linux.cc(297)] Failed to send GetTerminationStatus message to zygote
+Gdk-Message: 15:03:51.499: mendeleydesktop.x86_64: Fatal IO error 11 (Resource temporarily unavailable) on X server :0.
+

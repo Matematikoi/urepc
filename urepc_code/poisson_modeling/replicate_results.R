@@ -47,23 +47,24 @@ DDSE <- PMM$capushe@DDSE # DDSE results
 DDSE@model # Model selected by DDSE
 
 #plot(DDSE, newwindow=F, ask=F)
-plot(PMM, graphs=c("ICL","BIC","capushe"), data = dat.select)
+#plot(PMM, graphs=c("ICL","BIC","capushe"), data = dat.select)
 
 # Visualizing results
 
 mod <- PMM$DDSE.results
 summary(mod)
-plot(mod, graphs=c("map","may.bycluster","lambda"), data = dat.select)
+#plot(mod, graphs=c("map","may.bycluster","lambda"), data = dat.select)
 
 #histograms by cluster and variable  (density)
-plot(mod, graphs=c("weighted.histograms"), data = dat.select)
+#plot(mod, graphs=c("weighted.histograms"), data = dat.select)
 
 
 #plot(mod, graphs="map.bycluster")
 
-# Labels and results
+# Labels and resultse
 labels <- mod$labels
 probaPost <- mod$probaPost
 
 
-plot(mod, graphs="lambda")
+plot(mod, graphs="lambda",  data = dat.select)
+
