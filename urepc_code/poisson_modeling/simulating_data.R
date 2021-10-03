@@ -1,4 +1,65 @@
 library("ggplot2")
+
+
+#lambda <- c(2000,1000,2,1,50,30,200,100)
+#pi <- c(0.001,0.3,0.3,0.3)
+#lambda <- matrix(lambda, nrow =2 , byrow = FALSE)
+dimensions <- 2
+clusters <- 9
+
+lambda <- matrix(rexp(dimensions*clusters, rate = 0.01), dimensions)
+pi <- runif(clusters)
+pi <- pi/sum(pi)
+
+
+make_poisson_sim <- function(pi, lambda, n) {
+  dimension <- dim(lambda)[1]
+  clusters <- dim(lambda)[2]
+  replicates <- 2
+  data <- data.frame(matrix(ncol = dimension*replicates, nrow = 0))
+  
+  for (cluster in 1:clusters){
+    size  <-  round(n*pi[cluster])
+    data_aux <- data.frame(matrix(ncol = dimension*replicates, nrow = size))
+    print(size)
+    for (i in 1:dimension){
+      for (j in 1:replicates){
+        data_aux[(i-1)*dimension + j] <- rpois(size, lambda[i,cluster])
+      }
+    }
+    data <- rbind(data, data_aux)
+  }
+  
+  return(data)
+}
+
+data = make_poisson_sim(pi = pi , lambda = lambda, n = 15000)
+
+write.csv(data,file = "./data/simulated_data_points.csv")
+write.csv(lambda,file = "./data/simulated_data_lambda.csv")
+write.csv(pi,file = "./data/simulated_data_mixing_proportions.csv")
+
+ggplot(data, aes(X1))+
+  geom_histogram(binwidth = 1.0);
+
+ggplot(data, aes(X2))+
+  geom_histogram(binwidth = 1.0)
+
+ggplot(data, aes(X3))+
+  geom_histogram(binwidth = 1.0)
+
+
+
+
+
+
+
+
+
+
+
+
+
 pi <- c(0.10610058, 
         0.03684517, 
         0.04976060, 
@@ -43,33 +104,3 @@ lambda <- c(
   0.833770083 ,
   1.212663926
 )
-
-
-lambda <- c(20.0,20.0,2.0,2.0)
-pi <- c(0.5,0.5)
-lambda <- matrix(lambda, nrow =2 , byrow = FALSE)
-
-make_poisson_sim <- function(pi, lambda, n) {
-  dimension = dim(lambda)[1]
-  clusters = dim(lambda)[2]
-  data <- data.frame(matrix(ncol = dimension, nrow = 0))
-  
-  for (cluster in 1:clusters){
-    data_aux <- data.frame(matrix(ncol = dimension, nrow = n))
-    size = round(n*pi[cluster])
-    for (i in 1:dimension){
-      data_aux[i] <- rpois(n, lambda[i,cluster])
-    }
-    data <- rbind(data, data_aux)
-  }
-  
-  return(data)
-}
-
-data = make_poisson_sim(pi = pi , lambda = lambda, n = 1000)
-
-ggplot(data, aes(X1))+
-  geom_histogram()
-
-ggplot(data, aes(X2))+
-  geom_histogram(binwidth = 1.0)
