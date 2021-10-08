@@ -28,3 +28,10 @@ end_time <- Sys.time()
 
 end_time - start_time
 
+write.csv(PMM_9$probaPost, file = "./results/poisson_cluster_posteriors_8.csv")
+write.csv(y.filter$filteredData, file = "./results/poisson_cluster_data_points.csv")
+
+
+
+
+
