@@ -26,6 +26,7 @@ for (row in seq(length(w))){
 }
 
 write.csv(sim_data, file = "./results/sim_data_1.csv")
+write.csv(labels, file = "./results/sim_data_1_labels.csv")
 
 
 
