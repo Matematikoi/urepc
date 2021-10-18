@@ -1,0 +1,9 @@
+#!/bin/bash
+
+max_iter=$1
+
+echo max_iter=$max_iter
+
+Rscript code/npMSL_human_data.R max_iter=max_iter
+
+
