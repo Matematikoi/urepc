@@ -7,7 +7,7 @@ lambda <- read.csv("./results/fly_data_lambda.csv", row.names = 1)
 labels <- read.csv("./results/fly_data_labels.csv", row.names = 1)[[1]]
 pi <- read.csv("./results/fly_data_pi.csv", row.names = 1)
 
-  
+
   
 w <- rowSums(data.matrix(data_points))
 s <- normalization

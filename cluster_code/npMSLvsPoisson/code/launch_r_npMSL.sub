@@ -1,9 +1,23 @@
 #!/bin/bash
 
-max_iter=$1
+
+while getopts i:b:d:g:c: flag
+do
+    case "${flag}" in
+        i) max_iter=${OPTARG};;
+	b) bandwidth=${OPTARG};;
+	d) dataset=${OPTARG};;
+	g) ngrid=${OPTARG};;
+	c) cluster_number=${OPTARG};;
+    esac
+done
 
 echo max_iter=$max_iter
+echo bandwidth=$bandwidth
+echo ngrid=$ngrid
+echo dataset=$dataset
+echo cluster_number=$cluster_number
 
-Rscript code/npMSL_human_data.R max_iter=max_iter
+Rscript code/npMSL_human_data.R max_iter=$max_iter same_bw=$bandwidth cluster_number=$cluster_number "data_set_name='$dataset'" n_grid=$ngrid
 
 

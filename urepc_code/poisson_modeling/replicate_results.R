@@ -4,9 +4,9 @@
 if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
 
-BiocManager::install("edgeR")
-BiocManager::install("HTSFilter")
-BiocManager::install("HTSCluster")
+BiocManager::install("edgeR",force = TRUE)
+BiocManager::install("HTSFilter", force = TRUE)
+BiocManager::install("HTSCluster", force = TRUE)
 BiocManager::install("Biobase", force = TRUE)
 
 
