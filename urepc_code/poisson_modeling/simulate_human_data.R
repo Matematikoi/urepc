@@ -24,7 +24,7 @@ labels <- as.numeric(unlist(labels))
 
 cluster_size <- length(pi)
 
-normalization = c()
+
 lambda_per_cluster <- list()
 for (k in seq(cluster_size)){
   lambda_aux <- c(
@@ -41,6 +41,9 @@ for (row in seq(length(w))){
   sim_data[row,] <- rpois(length(normalization),lambda_per_cluster[[labels[row]]][row,])
 }
 
+
+sim_conds <- c("a","a","b","b")
+#sim_data_filtered <- HTSFilter(sim_data, conds, norm="TMM")
 write.csv(sim_data, file = "./human_sim_data/sim_data_2.csv")
 write.csv(labels, file = "./human_sim_data/sim_data_2_labels.csv")
 
@@ -52,3 +55,4 @@ end_time <- Sys.time()
 end_time - start_time
 
 write.csv(mix_pois_sim$labels, file = "./human_sim_data/sim_data_2_poisson_clustering_14.csv")
+
