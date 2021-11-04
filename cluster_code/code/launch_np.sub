@@ -1,0 +1,13 @@
+#!/bin/bash
+
+declare -a cluster_numbers=(8 9 10)
+maxiter=100
+
+for cluster_number in "${cluster_numbers[@]}"
+do
+	#n name max_k max_iteration
+	sbatch -A statdept -N 1 -n 1 --time=100:00:00 -o results/npEM_npMSL_replicates/nout_%j.out ./code/launch_r_np.sub $cluster_number npEM $maxiter
+
+	#Rscript code/cluster_selection.R "name='$dataset'" max_selection=15 max_iteration=1
+done
+

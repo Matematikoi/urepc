@@ -1,0 +1,21 @@
+#!/bin/bash
+
+cluster_size=$1
+method=$2
+maxiter=$3
+echo method $method
+echo cluster_size $cluster_size
+
+if [ $method == "npMSL" ];
+then
+	echo npMSL
+	Rscript code/npMSL.R "method='$method'" max_iteration=$maxiter cluster_size=$cluster_size
+else
+	echo npEM
+	Rscript code/npEM.R "method='$method'" max_iteration=$maxiter cluster_size=$cluster_size
+fi
+
+
+#Rscript code/cluster_selection.R max_selection=$max_selection max_iteration=$max_iteration  "name='./data/cluster_selection/$dataset'" 
+
+
