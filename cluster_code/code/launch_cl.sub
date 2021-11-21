@@ -1,0 +1,15 @@
+#!/bin/bash
+
+declare -a cluster_numbers=(20 21 22 23 24 25 26 27 28 29 30)
+declare -a maxiters=(200 500 1000 3500)
+
+for maxiter in "${maxiters[@]}"
+do 
+for cluster_number in "${cluster_numbers[@]}"
+do
+	#n name max_k max_iteration
+	sbatch -A statdept -N 1 -n 1 --time=335:10:00 -o results/cs_rep/2nout_%j.out ./code/launch_r_cl.sub -c $cluster_number -m $maxiter
+
+	#sh code/launch_r_cl.sub -c $cluster_number -m $maxiter
+done
+done

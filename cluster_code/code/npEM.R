@@ -1,13 +1,13 @@
 library("mixtools")
 
 names = c(
-  "./data/cluster_selection/1-5-CPMcutoff-suffix-1-log-cero-replacement.csv",
-  "./data/cluster_selection/1-5-CPMcutoff-suffix-2-log-cero-replacement.csv",
-  "./data/cluster_selection/1-5-CPMcutoff-suffix-3-log-cero-replacement.csv"
+  "./data/1_5_CPMcutoff_suffix_1_log_cero_replacement.csv",
+  "./data/1_5_CPMcutoff_suffix_2_log_cero_replacement.csv",
+  "./data/1_5_CPMcutoff_suffix_3_log_cero_replacement.csv"
 )
 
-cluster_size = 10
-max_iteration = 10
+cluster_size = 17
+max_iteration = 100
 method <- "npEM"
 
 invisible(eval(parse(text=commandArgs(TRUE))))
@@ -43,8 +43,14 @@ cluster_selection <- npEM(
 end_time <- Sys.time()
 
 
+
 write.csv(cluster_selection$posteriors, paste(
-  "./results/npEM_npMSL_replicates/posteriors",method
+  "./results/np_posteriors/posteriors",method
   ,"maxiter",max_iteration,
   "cluster-size",cluster_size,".csv", sep="_")
-  )
+)
+saveRDS(cluster_selection,paste(
+  "./results/np_models/model",method
+  ,"maxiter",max_iteration,
+  "cluster-size",cluster_size,".RDS", sep="_")
+)

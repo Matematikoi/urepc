@@ -6,8 +6,8 @@ names = c(
   "./data/cluster_selection/1-5-CPMcutoff-suffix-3-log-cero-replacement.csv"
 )
 
-cluster_size = 6
-max_iteration = 1000
+cluster_size = 10
+max_iteration = 500
 epsilon = 1e-07
 arbmean = TRUE
 
@@ -25,7 +25,7 @@ for(name in names){
 }
 
 
-data <- data[1:100,]
+#data <- data[1:100,]
 
 selection <- repnormmixmodel.sel(
   t(data),
@@ -37,7 +37,7 @@ selection <- repnormmixmodel.sel(
   )
 
 write.csv(selection , paste(
-  'results/cl_sel_rep/selection_',
+  'results/cs_rep/selection_',
   cluster_size,
   '_maxit_',
   max_iteration,

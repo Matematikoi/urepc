@@ -1,0 +1,14 @@
+#!/bin/bash
+
+while getopts m:c: flag
+do
+    case "${flag}" in
+	c) cluster_size=${OPTARG};;
+	m) max_iteration=${OPTARG};;
+    esac
+done
+
+echo max_iteration $max_iteration
+echo cluster_size $cluster_size
+
+Rscript code/select_clusters_replicates.R max_iteration=$max_iteration cluster_size=$cluster_size
