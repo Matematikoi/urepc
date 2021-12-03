@@ -1,26 +1,3 @@
-## MIT License
-
-## Copyright (c) 2021 Gildas Mazo
-
-## Permission is hereby granted, free of charge, to any person obtaining a copy
-## of this software and associated documentation files (the "Software"), to deal
-## in the Software without restriction, including without limitation the rights
-## to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-## copies of the Software, and to permit persons to whom the Software is
-## furnished to do so, subject to the following conditions:
-
-## The above copyright notice and this permission notice shall be included in all
-## copies or substantial portions of the Software.
-
-## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-## IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-## FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-## AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-## LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-## OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-## SOFTWARE.
-
-
 ## Returns the rows of 'data' whose at least one element is below 'tol'
 findOutliers <- function(data,tol){
                   where <- (abs(as.matrix(data))<=tol)
@@ -36,7 +13,15 @@ findOutliers <- function(data,tol){
 ## Q is either a list of the quantile functions G^{-1} either
 ## a list of (n*1)-vectors : (\tilde x_1,...,\tilde x_n) where the
 ## \tilde x_j are a sample of G_j.
-simul <- function(n,Q,mu,sigma,pz,theta,copulaFamilies){
+simul <- function(
+    n, 
+    Q, 
+    mu,
+    sigma,
+    pz,
+    theta,
+    copulaFamilies
+    ){
 
     d <- nrow(mu)
     K <- ncol(mu)
@@ -44,10 +29,6 @@ simul <- function(n,Q,mu,sigma,pz,theta,copulaFamilies){
     z <- numeric(K)
     cop <- list()
     intervalTheta <- matrix(nrow=2,ncol=K)
-
-    ## if(is.null(psi)){
-    ##     psi <- function(t,j){t}
-    ## }
     
     for(z in 1:K){
         if(copulaFamilies[z]=="gaussian"){
@@ -70,7 +51,7 @@ simul <- function(n,Q,mu,sigma,pz,theta,copulaFamilies){
     for(i in 1:n){
         z[i] <- sample(1:K,1,prob=pz)
         cop[[z[i]]]@parameters <- theta[z[i]]
-        u <- rCopula(1,cop[[z[i]]])
+        u <-  (1,cop[[z[i]]])
         for(j in 1:d){
             if(class(Q[[j]])=="function"){
                 x[i,j] <- Q[[j]](u[j])*sigma[j,z[i]]+mu[j,z[i]]
@@ -87,7 +68,6 @@ simul <- function(n,Q,mu,sigma,pz,theta,copulaFamilies){
 ## j=1,...,d, i=1,...,n and z=1,...,K (same for g);
 ## y_{ij}=\psi_j^{-1}(x_{ij})
 ## mu (d*K)-matrix
-
 EMalgo <- function(data, copulaFamilies, nbit, method, commonCopula){
 
     x <- data
