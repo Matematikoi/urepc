@@ -68,7 +68,13 @@ simul <- function(
 ## j=1,...,d, i=1,...,n and z=1,...,K (same for g);
 ## y_{ij}=\psi_j^{-1}(x_{ij})
 ## mu (d*K)-matrix
-EMalgo <- function(data, copulaFamilies, nbit, method, commonCopula){
+EMalgo <- function(
+    data,
+    copulaFamilies,
+    nbit, 
+    method,
+    commonCopula
+    ){
 
     x <- data
     n <- nrow(x)
@@ -89,7 +95,8 @@ EMalgo <- function(data, copulaFamilies, nbit, method, commonCopula){
     g <- array(dim=c(n,d,K))
     intervalTheta <- matrix(nrow=2,ncol=K)
     cop <- list()
-
+    
+    # TODO This should be its own function
     for(z in 1:K){
         if(copulaFamilies[z]=="gaussian"){
             cop[[z]] <- normalCopula(dim=d,dispstr="un")
@@ -113,6 +120,9 @@ EMalgo <- function(data, copulaFamilies, nbit, method, commonCopula){
             stop("'copulaFamilies' is wrong.")
         }
     }
+    
+    
+    
     for(j in 1:d){
         sampleOfG <- NA
         for(z in 1:K){

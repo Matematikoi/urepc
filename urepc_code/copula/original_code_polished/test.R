@@ -1,6 +1,7 @@
 start_time <- Sys.time()
 source("./original_code/functions.R")
 library(copula)
+library(quadprog)
 set.seed(189)
 nbcomp <- 3 # number if copulas
 mu0 <- matrix(nrow=2,ncol=nbcomp,
@@ -33,7 +34,7 @@ res <- EMalgo(
   data[,1:2], 
   copulaFamilies=rep("frank",nbcomp),
   nbit=nbit, 
-  method="naive-stochastic", 
+  method="new-stochastic", 
   commonCopula=FALSE
   )
 
