@@ -15,7 +15,8 @@ sigma0 <- matrix(nrow=2,ncol=nbcomp,
 pz0 <- rep(1/nbcomp,nbcomp)
 theta0 <- c(-3.45,3.45,0) 
 nbit <- 30
-nsample <- 300
+nsample <- 900
+
 for (i in 1:500){
   data <- simul(
     nsample, 
@@ -31,9 +32,11 @@ for (i in 1:500){
   ) # qnorm(x)
   
   write.csv(data, file = paste(
-    'sim_data/data_',
+    'sim_data/_data_idx',
     i,
-    '_.csv',
-    sep = ''
+    'size',
+    nsample,
+    '.csv',
+    sep = '_'
   ))
 }
