@@ -47,11 +47,15 @@ simul <- function(
             stop("'copulaFamily' is wrong.")
         }
     }
-
+    
+    
+    
+    
+    
     for(i in 1:n){
         z[i] <- sample(1:K,1,prob=pz)
         cop[[z[i]]]@parameters <- theta[z[i]]
-        u <-  (1,cop[[z[i]]])
+        u <-  rCopula(1,cop[[z[i]]])
         for(j in 1:d){
             if(class(Q[[j]])=="function"){
                 x[i,j] <- Q[[j]](u[j])*sigma[j,z[i]]+mu[j,z[i]]
@@ -73,7 +77,8 @@ EMalgo <- function(
     copulaFamilies,
     nbit, 
     method,
-    commonCopula
+    commonCopula,
+    debug = FALSE
     ){
 
     x <- data
@@ -121,8 +126,9 @@ EMalgo <- function(
         }
     }
     
-    
-    
+    if(debug){
+    print("finished selecting copula\n Starting with G initialization")
+    }
     for(j in 1:d){
         sampleOfG <- NA
         for(z in 1:K){
@@ -132,6 +138,9 @@ EMalgo <- function(
         sampleOfG <- sampleOfG[-1]
         xtildetrack[,j,1] <- sampleOfG
         for(z in 1:K){
+            if (debug){
+                cat("\n Initializing G&g.\n K: ",z,"\n d: ",j,'\n')
+            }
             h <- bw.nrd(sampleOfG)
             if((method=="naive-stochastic")|(method=="naive-deterministic")){ 
                 for(i in 1:n) G[i,j,z] <- mean( pnorm((x[i,j]-mu[j,z])/sigma[j,z],
@@ -163,7 +172,10 @@ EMalgo <- function(
             }
         }
     }
-
+    
+    if(debug){
+    print("finished setting G and g")
+    }
     for(z in 1:K){
         if(copulaFamilies[z]=="indep"){
             cop[[z]]@parameters <- theta[,z] <- 0 #theta[z]
@@ -183,6 +195,11 @@ EMalgo <- function(
     ## loop
     for(t in 1:nbit){
         
+        
+        if(debug){
+        cat("starting loop ", t,'\n')
+        }
+        
         ## 0. Calcul de h(z|x^i), x^i multivariate (OK)
         num <- hzx <- matrix(nrow=n, ncol=K)
         denom <- numeric(n)
@@ -192,9 +209,12 @@ EMalgo <- function(
                     num[i,z] <- 0 ## because analytic limit is zero 
                 }else{
                     num[i,z] <- abs( dCopula(G[i,,z],copula=cop[[z]]
-                                        )*prod(g[i,,z])*pz[z] ) # hope negative values close to 0
+                                    )*prod(g[i,,z])*pz[z] ) # hope negative values close to 0
                 } # this is to avoid numbers like -0.0567e-267
             }
+        }
+        if(debug){
+            print("Done calculating num")
         }
         for(i in 1:n){
             denom[i] <- sum(num[i,],na.rm=TRUE)
@@ -202,11 +222,19 @@ EMalgo <- function(
                 hzx[i,z] <- if(denom[i]==0) 1/K else num[i,z]/denom[i]
             }
         }
-
+        
+        if(debug){
+        print("finished updating h(z|x_i)")
+        }
+        
         ## 1. Update pi_z for each z (OK)
         newpz <- numeric(K)
         for(z in 1:K){
             newpz[z] <- mean(hzx[,z],na.rm=TRUE)
+        }
+        
+        if(debug){
+        print("finished updating pi_z")
         }
 
         ## 2. Update mu_{jz} for each j=1,...,d, z=1,...,K (OK)
@@ -216,7 +244,11 @@ EMalgo <- function(
                 newmu[j,z] <- sum(x[,j]*hzx[,z])/sum(hzx[,z])
             }
         }
-
+        
+        if(debug){
+        print("finished updating mu")
+        }
+        
         ## Update sigma_{j,z}, j=1,...,d, z=1,...,K (Yaroslav's formula)
         newsigma <- matrix(nrow=d,ncol=K)
         for(z in 1:K){
@@ -225,6 +257,9 @@ EMalgo <- function(
             }
         }
         
+        if(debug){
+        print("finished updating sigma")
+        }
         ## Update G, ie create a sample of it
         zsim <- numeric(n)
         for(i in 1:n){
@@ -233,6 +268,10 @@ EMalgo <- function(
                 xtilde[i,j] <- xtildetrack[i,j,t+1] <-
                     ( x[i,j]-mu[j,zsim[i]] )/sigma[j,zsim[i]]
             }
+        }
+        
+        if(debug){
+        print("finished updating G")
         }
 
         ## Compute the "G" 
@@ -260,7 +299,17 @@ EMalgo <- function(
                                         # tolerance, even if the numbers are negative.
                     dvec <- rep(0,n)
                     Dmat <- diag(2,n)
+                    
+                    if(debug){
+                    cat("starting to solve the matrix K ",z," d ",j, '\n')
+                    }
+                
                     kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution
+                    
+                    if(debug){
+                    cat("finished to solve the matrix K ",z," d ",j,'\n')
+                    }
+                
                     for(i in 1:n) newg[i,j,z] <- (1/sigma[j,z])*t(kweightshat)%*%
                                       dnorm(xtilde[,j], mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
                     for(i in 1:n) newG[i,j,z] <- t(kweightshat)%*%
@@ -308,19 +357,16 @@ EMalgo <- function(
                 }
             }
         }
-
+        
+        if(debug){
+        print("finished updating G 2nd time")
+        }
+        
         ## Update copulas parameters
         newTheta <- matrix(nrow=d*(d-1)/2,ncol=K) # newTheta <- numeric(K)
         ## If there is a common copula
-        if(commonCopula==TRUE){ 
+        if(commonCopula){ 
             optimizeFoo <- function(par){
-                ## temp <- numeric(K)
-                ## for(z in 1:K){
-                ##     cop[[z]]@parameters <- par
-                ##     outliers<- which(dCopula(G[,,z],copula=cop[[z]])==0)
-                ##     temp[z] <- sum(log(dCopula(G[setdiff(1:n,outliers),,z],copula=cop[[z]]))*
-                ##                    hzx[,z])
-                ## }
                 sum(temp)
                 temp <- numeric(K)
                 for(z in 1:K){ # - Inf = 0 = 0
@@ -330,11 +376,13 @@ EMalgo <- function(
                 }
                 sum(temp)
             }
+            
             for(z in 1:K){
                 newTheta[z] <- optimize(optimizeFoo,intervalTheta[,z],maximum=TRUE)$maximum
                 cop[[z]]@parameters <- theta[z]
             }
-        }else{
+        }
+        else{
             ## If the copulas are different
             optimizeFoo <- function(par, z){
                 cop[[z]]@parameters <- par
@@ -351,13 +399,41 @@ EMalgo <- function(
                 if(length(theta[,z])==1){
                     newTheta[,z] <- optimize(optimizeFoo,intervalTheta[,z],
                                              z=z,maximum=TRUE)$maximum
-                    }else{
-                        try(newTheta[,z] <- optim(theta[,z],optimFoo,
-                                                  z=z,method="BFGS")$par)
+                    }
+                else{
+                    if(debug){
+                    cat ("theta[,z]: ",theta[,z],'\n z: ',z,'\n')
+                    }
+                    try(newTheta[,z] <- optim(theta[,z],optimFoo,
+                                              z=z,method="BFGS")$par)
+                    # newTheta[,z] <- tryCatch(
+                    # {
+                    #      return (optim(theta[,z],optimFoo,
+                    #                       z=z,method="BFGS")$par)
+                    # },
+                    #     error=function(cond) {
+                    #     cat(
+                    #         "theta[,z]: ",
+                    #         theta[,z],
+                    #         "\n z : ",
+                    #         z
+                    #         )
+                    #     # Choose a return value in case of error
+                    #     return(NA)
+                    # },
+                    # finally = {
+                    #     print("finished optimizing copula")
+                    # }
+                    # )
                     }
                 cop[[z]]@parameters <- theta[,z] # cop[[z]]@parameters <- theta[z]
             }
         }
+        
+        if(debug){
+        print("finished updating copula values")
+        }
+        
         ## Compute the objective value
         term1 <- term2 <- term3 <- term4 <- matrix(nrow=n,ncol=K)
         for(z in 1:K){
@@ -372,6 +448,11 @@ EMalgo <- function(
                 }
             }
         }        
+        
+        if(debug){
+        print("finished updating objective value")
+        }
+        
         objectiveValue <- c(objectiveValue,sum(term1+term2+term3)-sum(term4))
         print(objectiveValue[length(objectiveValue)]) # 'objectiveValue' is the
                                         # log-likelihood of the data. Without the
@@ -496,6 +577,7 @@ EMalgoParamGauss <- function(data, nbit, K=3){
         }
 
         objectiveValue <- c(objectiveValue,sum(term1+term3-term4,na.rm=TRUE))
+        print("objective Value:")
         print(objectiveValue[length(objectiveValue)])
         
         ## Updates the programme variables

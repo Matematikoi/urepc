@@ -1,1 +1,4 @@
 sim_data/*
+results/*
+results_cancer/*
+results_sim_data/*

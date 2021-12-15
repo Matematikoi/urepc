@@ -1,5 +1,5 @@
 start_time <- Sys.time()
-source("./original_code/functions.R")
+source("./original_code_polished/functions.R")
 library(copula)
 library(quadprog)
 set.seed(189)
@@ -33,9 +33,10 @@ data <- simul(
 res <- EMalgo(
   data[,1:2], 
   copulaFamilies=rep("frank",nbcomp),
-  nbit=nbit, 
+  nbit= 1,#nbit, 
   method="new-stochastic", 
-  commonCopula=FALSE
+  commonCopula=FALSE,
+  debug = FALSE
   )
 
 #str(res) 
