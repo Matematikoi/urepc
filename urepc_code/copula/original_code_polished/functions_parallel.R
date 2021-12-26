@@ -92,8 +92,8 @@ EMalgo <- function(
   sigmatrack <- array(dim=c(d,K,nbit+1))
   pz <- km$size/nrow(x)
   pztrack <- array(dim=c(K,nbit+1))
-  theta <- numeric(K) # matrix(nrow=d*(d-1)/2,ncol=K)
-  thetatrack <- array(dim=c(K,nbit+1)) # array(dim=c(d*(d-1)/2,K,nbit+1))
+  theta <- matrix(nrow=d*(d-1)/2,ncol=K) # numeric(K)
+  thetatrack <- array(dim=c(d*(d-1)/2,K,nbit+1)) # array(dim=c(K,nbit+1))
   xtilde <- matrix(nrow=n,ncol=d)
   xtildetrack <- array(dim=c(n,d,nbit+1))
   G <- array(dim=c(n,d,K))
@@ -156,8 +156,10 @@ EMalgo <- function(
         dvec <- rep(0,length(sampleOfG))
         Dmat <- diag(2,length(sampleOfG))
         kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution # 'k' like kernel
-        for(i in 1:n) g[i,j,z] <- (1/sigma[j,z])*t(kweightshat)%*%
+        for(i in 1:n){
+          g[i,j,z] <- (1/sigma[j,z])*t(kweightshat)%*%
           dnorm(sampleOfG, mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
+        }
         for(i in 1:n) G[i,j,z] <- t(kweightshat)%*%
           pnorm((x[i,j]-mu[j,z])/sigma[j,z], mean=sampleOfG, sd=h)
       }else{ # obsolete
@@ -178,18 +180,18 @@ EMalgo <- function(
   }
   for(z in 1:K){
     if(copulaFamilies[z]=="indep"){
-      cop[[z]]@parameters <- theta[z] <- 0 # theta[,z]
+      cop[[z]]@parameters <- theta[,z] <- 0 #theta[z]
     }else{
-      theta[z] <- fitCopula(cop[[z]], pobs(x[km$cluster==z,]),
-                             method="itau")@estimate #theta[,z]
-      cop[[z]]@parameters <- theta[z] #theta[,z]
+      theta[,z] <- fitCopula(cop[[z]], pobs(x[km$cluster==z,]),
+                             method="itau")@estimate
+      cop[[z]]@parameters <- theta[,z] # theta[z]
     }
   }
   
   objectiveValue <- 0
   mutrack[,,1] <- mu
   sigmatrack[,,1] <- sigma
-  thetatrack[,1] <- theta # thetatrack[,,1] <- theta 
+  thetatrack[,,1] <- theta # thetatrack[,1] <- theta
   pztrack[,1] <- pz
   
   ## loop
@@ -271,7 +273,7 @@ EMalgo <- function(
     }
     
     if(debug){
-      print("finished updating G")
+      print("finished updating x tilde")
     }
     
     ## Compute the "G" 
@@ -287,7 +289,8 @@ EMalgo <- function(
           for(i in 1:n) newg[i,j,z] <- mean( dnorm((x[i,j]-mu[j,z])/sigma[j,z],
                                                    mean=xtilde[,j],
                                                    sd=h) )/sigma[j,z]
-        }else if(method=="new-stochastic"){
+        }
+        else if(method=="new-stochastic"){
           h <- bw.nrd(xtilde[,j])
           M <- rbind(rep(1,length(xtilde[,j])), xtilde[,j], xtilde[,j]^2)
           Amat <- cbind(t(M),diag(1,n))
@@ -314,7 +317,8 @@ EMalgo <- function(
             dnorm(xtilde[,j], mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
           for(i in 1:n) newG[i,j,z] <- t(kweightshat)%*%
             pnorm((x[i,j]-mu[j,z])/sigma[j,z], mean=xtilde[,j], sd=h)
-        }else if(method=="naive-deterministic"){
+        }
+        else if(method=="naive-deterministic"){
           h <- bw.nrd(x[,j]) # choix de h non resolu dans ce cas.
           tmp <- matrix(nrow=n, ncol=K) # approche Benaglia et al 2009 ne va pas
           for(i in 1:n){ # non plus car l'estimateur n'est pas une densite
@@ -334,10 +338,12 @@ EMalgo <- function(
             }
             newG[i,j,z] <- sum(tmp[i,])/n
           }
-        }else if(method=="new-deterministic"){
+        }
+        else if(method=="new-deterministic"){
           h <- bw.nrd(x[,j])
           print("not yet implemented")
-        }else{ # obsolete
+        }
+        else{ # obsolete
           h <- bw.nrd(xtilde[,j])
           for(i in 1:n) newG1[i,j,z] <- mean( pnorm((x[i,j]-mu[j,z])/sigma[j,z],
                                                     mean=xtilde[,j],
@@ -363,7 +369,7 @@ EMalgo <- function(
     }
     
     ## Update copulas parameters
-    newTheta <- numeric(K) #newTheta <- matrix(nrow=d*(d-1)/2,ncol=K) 
+    newTheta <- matrix(nrow=d*(d-1)/2,ncol=K) # newTheta <- numeric(K)
     ## If there is a common copula
     if(commonCopula){ 
       optimizeFoo <- function(par){
@@ -396,15 +402,18 @@ EMalgo <- function(
       }
       for(z in 1:K){
         outliers <- findOutliers(hzx[,z],1e-13) # findOutliers(g[,,z],1e-13)
-        # if(length(theta[z])==1){ #theta[,z]
-        #   newTheta[z] <- optimize(optimizeFoo,intervalTheta[,z],
-        #                            z=z,maximum=TRUE)$maximum
-        # }
-        # else{
-          try(newTheta[z] <- optim(theta[z],optimFoo,
+        if(length(theta[,z])==1){
+          newTheta[,z] <- optimize(optimizeFoo,intervalTheta[,z],
+                                   z=z,maximum=TRUE)$maximum
+        }
+        else{
+          if(debug){
+            cat ("theta[,z]: ",theta[,z],'\n z: ',z,'\n')
+          }
+          try(newTheta[,z] <- optim(theta[,z],optimFoo,
                                     z=z,method="BFGS")$par)
-        # }
-        cop[[z]]@parameters <- theta[z] # cop[[z]]@parameters <- theta[,z]
+        }
+        cop[[z]]@parameters <- theta[,z] # cop[[z]]@parameters <- theta[z]
       }
     }
     
@@ -440,14 +449,14 @@ EMalgo <- function(
     
     ## Updates the programme variables
     for(z in 1:K){
-      cop[[z]]@parameters <- newTheta[z] # cop[[z]]@parameters <- newTheta[,z]
+      cop[[z]]@parameters <- newTheta[,z] # cop[[z]]@parameters <- newTheta[z]
     }
     mu <- mutrack[,,t+1] <- newmu
     sigma <- sigmatrack[,,t+1] <- newsigma
     g <- newg
     G <- newG
     pz <- pztrack[,t+1] <- newpz
-    theta <- thetatrack[,t+1] <- newTheta #thetatrack[,,t+1]
+    theta <- thetatrack[,,t+1] <- newTheta
   }
   
   return( list(G=G,g=g,theta=thetatrack,mu=mutrack,sigma=sigmatrack,
@@ -600,46 +609,42 @@ rlaplace <- function(n,b){
 
 
 
-
-
-
-
 library(copula)
 library(quadprog)
+set.seed(189)
+nbcomp <- 3 # number of copulas
+mu0 <- matrix(nrow=2,ncol=nbcomp,
+              c( -3,  0,
+                 0,   3,
+                 3, 0))
+sigma0 <- matrix(nrow=2,ncol=nbcomp,
+                 c( 2, .7,
+                    .7, 1.4,
+                    1.4, 2.8))
+pz0 <- rep(1/nbcomp,nbcomp)
+theta0 <- c(-3.45,3.45,0) 
+nbit <- 10
+nsample <- 1500
 
-copulaName <- "frank"
-clusterSize <- 3
-sampleSize <- 1500
-nb_it_em <- 5
-method <- "new-stochastic"
-
-names = c(
-  "../cluster_number_testing/data/1_5_CPMcutoff_suffix_1_log_cero_replacement.csv",
-  "../cluster_number_testing/data/1_5_CPMcutoff_suffix_1_log_cero_replacement.csv",
-  "../cluster_number_testing/data/1_5_CPMcutoff_suffix_1_log_cero_replacement.csv"
+data <- simul(
+  nsample, 
+  Q=list(
+    function(x){qnorm(x)},
+    function(x){qlaplace(x,b=1/sqrt(2))}
+  ),
+  mu=mu0,
+  sigma=sigma0,
+  pz=pz0,
+  theta=theta0, # qlaplace(x,b=1/sqrt(2))
+  copulaFamilies=rep("frank",nbcomp)
+) # qnorm(x)
+system.time(
+  res <- EMalgo(
+    data[,1:2], 
+    copulaFamilies=rep("frank",nbcomp),
+    nbit= nbit, 
+    method="new-stochastic", 
+    commonCopula=FALSE,
+    debug = TRUE
+  )
 )
-
-#read the data and combine it. 
-data <- NULL
-for(name in names){
-  genes <- as.matrix(read.csv(name)[,c(1)])
-  aux_data <- as.matrix(read.csv(name)[,c(2,3,4,5)])
-  if (is.null(data)){
-    data <- aux_data
-  }else{
-    data <- cbind(data,aux_data)
-  }
-  break
-}
-
-data <- data[sample(1:nrow(data), sampleSize, replace = FALSE),]
-
-result <- EMalgo(
-  data,
-  copulaFamilies=rep(copulaName,clusterSize),
-  nbit=nb_it_em,
-  method=method,
-  commonCopula=FALSE,
-  debug = TRUE
-)
-
