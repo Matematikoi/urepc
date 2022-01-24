@@ -5,6 +5,55 @@ findOutliers <- function(data,tol){
   is.outlier
 }
 
+solve_column_g <- function(K,n,x,z,sampleOfG,mu,sigma,j){
+  solution <- array(dim = c(n,2))
+  h <- bw.nrd(sampleOfG)
+  M <- rbind(rep(1,length(sampleOfG)), sampleOfG, sampleOfG^2)
+  Amat <- cbind(t(M),diag(1,length(sampleOfG)))
+  bvec <- c(1,0,1-h^2,rep(0,length(sampleOfG)))
+  dvec <- rep(0,length(sampleOfG))
+  Dmat <- diag(2,length(sampleOfG))
+  kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution # 'k' like kernel
+  
+  for(i in 1:n){
+    for(l in 1:2){
+      if ( l == 2){
+        solution[i,l] <- (1/sigma[j,z])*t(kweightshat)%*%
+          dnorm(sampleOfG, mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
+      }else{
+        solution[i,l] <- t(kweightshat)%*%
+          pnorm((x[i,j]-mu[j,z])/sigma[j,z], mean=sampleOfG, sd=h)
+      }
+    }
+  }
+  return( solution)
+}
+across_dimensions <- function(j,K,n,x,mu,sigma,km){
+  sampleOfG <- NA
+  for(z in 1:K){
+    sigma[j,z] <- sd(x[km$cluster==z,j])
+    sampleOfG <- c(sampleOfG, (x[km$cluster==z,j]-mu[j,z])/sigma[j,z])
+  }
+  sampleOfG <- sampleOfG[-1]
+  res <- mclapply(
+    1:K,
+    solve_column_g,
+    mc.cores = 17,
+    K= K,
+    n = n,
+    x = x,
+    sampleOfG = sampleOfG,
+    mu = mu,
+    sigma = sigma,
+    j = j
+  )
+  res_format <- array(dim = c(K,n,2))
+  for (z in 1:K){
+    res_format[z,,] <- res[[z]]
+  }
+  return(res_format)
+}
+
 
 ## It is assumed that the support of G is (-\infty,+\infty) and that
 ## G is centered at 0. The copulas must have only one parameter.
@@ -92,8 +141,8 @@ EMalgo <- function(
   sigmatrack <- array(dim=c(d,K,nbit+1))
   pz <- km$size/nrow(x)
   pztrack <- array(dim=c(K,nbit+1))
-  theta <- numeric(K)
-  thetatrack <- array(dim=c(nbit+1))
+  theta <- matrix(nrow=d*(d-1)/2,ncol=K) # numeric(K)
+  thetatrack <- array(dim=c(d*(d-1)/2,K,nbit+1)) # array(dim=c(K,nbit+1))
   xtilde <- matrix(nrow=n,ncol=d)
   xtildetrack <- array(dim=c(n,d,nbit+1))
   G <- array(dim=c(n,d,K))
@@ -130,57 +179,18 @@ EMalgo <- function(
     print("finished selecting copula\n Starting with G initialization")
   }
   for(j in 1:d){
-    sampleOfG <- NA
     for(z in 1:K){
       sigma[j,z] <- sd(x[km$cluster==z,j])
-      sampleOfG <- c(sampleOfG, (x[km$cluster==z,j]-mu[j,z])/sigma[j,z])
     }
-    sampleOfG <- sampleOfG[-1]
-    xtildetrack[,j,1] <- sampleOfG
-    for(z in 1:K){
-      if (debug){
-        cat("\n Initializing G&g.\n K: ",z,"\n d: ",j,'\n')
-      }
-      h <- bw.nrd(sampleOfG)
-      if((method=="naive-stochastic")|(method=="naive-deterministic")){ 
-        for(i in 1:n) G[i,j,z] <- mean( pnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                              mean=sampleOfG, sd=h) )
-        for(i in 1:n) g[i,j,z] <- (1/sigma[j,z])*mean( dnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                                             mean=sampleOfG, sd=h) ) 
-      }else if((method=="new-stochastic")|(method=="new-deterministic")){ 
-        M <- rbind(rep(1,length(sampleOfG)), sampleOfG, sampleOfG^2)
-        ## MMtinv <- solve(M%*%t(M),diag(rep(1,3))) # explicit solution whenever
-        ## kweightshat <- t(M)%*%MMtinv%*%c(1,0,1-h^2) # p>=0 not taken into account
-        Amat <- cbind(t(M),diag(1,length(sampleOfG)))
-        bvec <- c(1,0,1-h^2,rep(0,length(sampleOfG)))
-        dvec <- rep(0,length(sampleOfG))
-        Dmat <- diag(2,length(sampleOfG))
-        
-        #memory intensive
-        # print(format(object.size(Dmat), units = "auto"))
-        # print(format(object.size(dvec), units = "auto"))
-        # print(format(object.size(Amat), units = "auto"))
-        # print(format(object.size(bvec), units = "auto"))
-        
-        kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution # 'k' like kernel
-        
-        
-        
-        for(i in 1:n) g[i,j,z] <- (1/sigma[j,z])*t(kweightshat)%*%
-          dnorm(sampleOfG, mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
-        for(i in 1:n) G[i,j,z] <- t(kweightshat)%*%
-          pnorm((x[i,j]-mu[j,z])/sigma[j,z], mean=sampleOfG, sd=h)
-      }else{ # obsolete
-        for(i in 1:n) G[i,j,z] <- .5*mean( pnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                                 mean=sampleOfG, sd=h) ) + .5 -
-            .5*mean( pnorm((-x[i,j]+mu[j,z])/sigma[j,z],
-                           mean=sampleOfG, sd=h) )
-        for(i in 1:n) g[i,j,z] <- .5*(1/sigma[j,z])*mean( dnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                                                mean=sampleOfG, sd=h) ) +
-            .5*(1/sigma[j,z])*mean( dnorm((-x[i,j]+mu[j,z])/sigma[j,z],
-                                          mean=sampleOfG, sd=h) )
-      }
-    }
+  }
+  
+  across_dimensions_aux <- function (param){across_dimensions(param,K,n,x,mu,sigma,km)}
+  time_init <- system.time(
+    result <- mclapply(1:d,across_dimensions_aux, mc.cores = numCores_2)
+  )
+  for(i in 1:d){
+    G[,i,] <- result[[i]][,,1]
+    g[,i,] <- result[[i]][,,2]
   }
   
   if(debug){
@@ -188,23 +198,18 @@ EMalgo <- function(
   }
   for(z in 1:K){
     if(copulaFamilies[z]=="indep"){
-      cop[[z]]@parameters <- theta[z] <- 0 #theta[z]
+      cop[[z]]@parameters <- theta[,z] <- 0 #theta[z]
     }else{
-      fittedCopula <- fitCopula(
-        copula = cop[[z]], 
-        data = pobs(x[km$cluster==z,]),
-        method="itau"
-      )
-      theta[z] <- fittedCopula@copula@parameters
-      cop[[z]] <- fittedCopula@copula
-
+      theta[,z] <- fitCopula(cop[[z]], pobs(x[km$cluster==z,]),
+                             method="itau")@estimate
+      cop[[z]]@parameters <- theta[,z] # theta[z]
     }
   }
   
   objectiveValue <- 0
   mutrack[,,1] <- mu
   sigmatrack[,,1] <- sigma
-  thetatrack[1] <- theta
+  thetatrack[,,1] <- theta # thetatrack[,1] <- theta
   pztrack[,1] <- pz
   
   ## loop
@@ -320,7 +325,23 @@ EMalgo <- function(
           }
           
           kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution
-          
+          # Dmat <- diag(2,n)
+          # Amat <- cbind(t(M),diag(1,n))
+          aux_list <- list(
+            dvec = dvec, 
+            bvec = bvec, 
+            meq = 3,
+            kweightshat = kweightshat, 
+            n = n, 
+            M = M
+          )
+          # saveRDS(aux_list , file = paste(
+          #   'opti_data/opt',
+          #   number_file_cnt,
+          #   '.RDS',
+          #   sep = '_'
+          # ))
+          number_file_cnt <-  number_file_cnt +1
           if(debug){
             cat("finished to solve the matrix K ",z," d ",j,'\n')
           }
@@ -378,16 +399,13 @@ EMalgo <- function(
     }
     
     ## Update copulas parameters
-    # CHANGE
-    # newTheta <- matrix(nrow=d*(d-1)/2,ncol=K) # 
-    newTheta <- numeric(K)
+    newTheta <- matrix(nrow=d*(d-1)/2,ncol=K) # newTheta <- numeric(K)
     ## If there is a common copula
     if(commonCopula){ 
       optimizeFoo <- function(par){
         sum(temp)
         temp <- numeric(K)
         for(z in 1:K){ # - Inf = 0 = 0
-          
           cop[[z]]@parameters <- par
           temp[z] <- sum(log(dCopula(G[hzx[,z]!=0,,z],copula=cop[[z]]))*
                            hzx[hzx[,z]!=0,z])
@@ -396,15 +414,6 @@ EMalgo <- function(
       }
       
       for(z in 1:K){
-        # CHANGE
-        # fittedCopula <- fitCopula(
-        #   copula = cop[[z]], 
-        #   data = pobs(x[km$cluster==z,]),
-        #   method="itau"
-        # )
-        # theta[z] <- fittedCopula@copula@parameters
-        # cop[[z]] <- fittedCopula@copula
-        
         newTheta[z] <- optimize(optimizeFoo,intervalTheta[,z],maximum=TRUE)$maximum
         cop[[z]]@parameters <- theta[z]
       }
@@ -433,6 +442,25 @@ EMalgo <- function(
           }
           try(newTheta[,z] <- optim(theta[,z],optimFoo,
                                     z=z,method="BFGS")$par)
+          # newTheta[,z] <- tryCatch(
+          # {
+          #      return (optim(theta[,z],optimFoo,
+          #                       z=z,method="BFGS")$par)
+          # },
+          #     error=function(cond) {
+          #     cat(
+          #         "theta[,z]: ",
+          #         theta[,z],
+          #         "\n z : ",
+          #         z
+          #         )
+          #     # Choose a return value in case of error
+          #     return(NA)
+          # },
+          # finally = {
+          #     print("finished optimizing copula")
+          # }
+          # )
         }
         cop[[z]]@parameters <- theta[,z] # cop[[z]]@parameters <- theta[z]
       }
@@ -470,14 +498,14 @@ EMalgo <- function(
     
     ## Updates the programme variables
     for(z in 1:K){
-      cop[[z]]@parameters <- newTheta[1,z] # cop[[z]]@parameters <- newTheta[z]
+      cop[[z]]@parameters <- newTheta[,z] # cop[[z]]@parameters <- newTheta[z]
     }
     mu <- mutrack[,,t+1] <- newmu
     sigma <- sigmatrack[,,t+1] <- newsigma
     g <- newg
     G <- newG
     pz <- pztrack[,t+1] <- newpz
-    
+    theta <- thetatrack[,,t+1] <- newTheta
   }
   
   return( list(G=G,g=g,theta=thetatrack,mu=mutrack,sigma=sigmatrack,
@@ -500,10 +528,9 @@ EMalgoParamGauss <- function(data, nbit, K=3){
   covestimateBG <- array(dim=c(d,d,K)) # By Group
   covestimate <- matrix(nrow=d,ncol=d) # mean of the covariance matrices
   sigma <- array(dim=c(d,K)) # standard deviation and NOT variance!
-  theta <- 0
+  theta <- numeric(K)
   mutrack <- sigmatrack <- array(dim=c(d,K,(nbit+1)))
   thetatrack <- pztrack <- array(dim=c(K,(nbit+1)))
-  thetatrack <- numeric(nbit)
   
   for(z in 1:K){
     covestimateBG[,,z] <- cov(x[km$cluster==z,])
@@ -515,7 +542,7 @@ EMalgoParamGauss <- function(data, nbit, K=3){
   objectiveValue <- 0
   mutrack[,,1] <- mu
   sigmatrack[,,1] <- sigma
-  thetatrack[1] <- theta
+  thetatrack[,1] <- theta
   pztrack[,1] <- pz
   
   ## loop
@@ -594,7 +621,7 @@ EMalgoParamGauss <- function(data, nbit, K=3){
     covestimateBG <- newcovestimateBG
     covestimate <- newcovestimate
     sigma <- sigmatrack[,,t+1] <- newsigma
-    theta <- thetatrack[t+1] <- newtheta
+    theta <- thetatrack[,t+1] <- newtheta
     pz <- pztrack[,t+1] <- newpz
   }
   
@@ -630,28 +657,18 @@ rlaplace <- function(n,b){
 
 
 
-start_time <- Sys.time()
 library(copula)
 library(quadprog)
+library(parallel)
 
-copulaName <- "frank"
-clusterSize <- 3
+numCores <- 15
+numCores_2 <- 4
+copulaName <- "gaussian"
+clusterSize <- 15
 sampleSize <- 1000
-nb_it_em <- 5
+nb_it_em <- 2
 method <- "new-stochastic"
-
-invisible(eval(parse(text=commandArgs(TRUE))))
-
-# if (copulaName == "frank"){
-#   source("./original_code_polished/functions_experimental_frank.R")  
-# }else{
-#   source("./original_code_polished/functions.R")
-# }
-
-
-
-
-
+number_file_cnt <- 0
 
 names = c(
   "../cluster_number_testing/data/1_5_CPMcutoff_suffix_1_log_cero_replacement.csv",
@@ -674,6 +691,7 @@ for(name in names){
 
 data <- data[sample(1:nrow(data), sampleSize, replace = FALSE),]
 
+start_tm <- Sys.time()
 result <- EMalgo(
   data,
   copulaFamilies=rep(copulaName,clusterSize),
@@ -682,25 +700,3 @@ result <- EMalgo(
   commonCopula=FALSE,
   debug = TRUE
 )
-
-# name_file <- paste(
-#   'results_cancer/model_clusters',
-#   clusterSize,
-#   'iterations',
-#   nb_it_em,
-#   'copula',
-#   copulaName,
-#   '.RDS',
-#   sep='_'
-# )
-
-# saveRDS(result , file = name_file)
-
-end_time <- Sys.time()
-run_time <- end_time - start_time
-
-print(run_time)
-
-
-
-

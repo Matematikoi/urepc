@@ -12,7 +12,9 @@ library(quadprog)
 # # Initialize cluster for parallel computing
 # registerDoParallel(cl)
 # mbind <- function(...) abind(..., along=3)
-numCores <- detectCores()
+# numCores <- detectCores()
+numCores <- 15
+numCores_2 <- 4
 
 
 
@@ -29,32 +31,7 @@ g <- array(dim=c(n,d,K))
 
 # hacer una funcion con mclappply
 
-solve_column_g <- function(K,n,x,z,sampleOfG,mu,sigma){
-  res <- array(dim = c(n,2))
-  h <- bw.nrd(sampleOfG)
-  M <- rbind(rep(1,length(sampleOfG)), sampleOfG, sampleOfG^2)
-  Amat <- cbind(t(M),diag(1,length(sampleOfG)))
-  bvec <- c(1,0,1-h^2,rep(0,length(sampleOfG)))
-  dvec <- rep(0,length(sampleOfG))
-  Dmat <- diag(2,length(sampleOfG))
-  kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution # 'k' like kernel
-  
-  for(i in 1:n){
-    # foreach(i=1:n, .combine=cbind)%do%{
-    
-    for(l in 1:2){
-      # foreach(l=1:2, .combine=c)%dopar%{
-      if ( l == 2){
-        res[i,l] <- (1/sigma[j,z])*t(kweightshat)%*%
-          dnorm(sampleOfG, mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
-      }else{
-        res[i,l] <- t(kweightshat)%*%
-          pnorm((x[i,j]-mu[j,z])/sigma[j,z], mean=sampleOfG, sd=h)
-      }
-    }
-  }
-  return( res)
-}
+
 
 # time_serial <- system.time(
 # for(j in 1:d){
@@ -66,92 +43,107 @@ solve_column_g <- function(K,n,x,z,sampleOfG,mu,sigma){
 #     sampleOfG <- c(sampleOfG, (x[km$cluster==z,j]-mu[j,z])/sigma[j,z])
 #   }
 #   sampleOfG <- sampleOfG[-1]
-#   
+# 
 #   for (z in 1:K){
-#     res <- solve_column_g(K,n,x,z,sampleOfG,mu,sigma)
+#     print('serial #')
+#     print(z)
+#     res <- solve_column_g(K,n,x,z,sampleOfG,mu,sigma,j)
 #     G[,j,z] <-  res[,1]
 #     g[,j,z] <- res[,2]
 #   }
-#   
+# 
 # }
 # )
 # print('serial time')
 # print(time_serial)
-
-time_parallel <- system.time(
-  for(j in 1:d){
-    print("current dimension")
-    print (j)
-    sampleOfG <- NA
-    for(z in 1:K){
-      sigma[j,z] <- sd(x[km$cluster==z,j])
-      sampleOfG <- c(sampleOfG, (x[km$cluster==z,j]-mu[j,z])/sigma[j,z])
+# print(g[503,,])
+solve_column_g <- function(K,n,x,z,sampleOfG,mu,sigma,j){
+  solution <- array(dim = c(n,2))
+  h <- bw.nrd(sampleOfG)
+  M <- rbind(rep(1,length(sampleOfG)), sampleOfG, sampleOfG^2)
+  Amat <- cbind(t(M),diag(1,length(sampleOfG)))
+  bvec <- c(1,0,1-h^2,rep(0,length(sampleOfG)))
+  dvec <- rep(0,length(sampleOfG))
+  Dmat <- diag(2,length(sampleOfG))
+  kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution # 'k' like kernel
+  
+  for(i in 1:n){
+    for(l in 1:2){
+      if ( l == 2){
+        solution[i,l] <- (1/sigma[j,z])*t(kweightshat)%*%
+          dnorm(sampleOfG, mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
+      }else{
+        solution[i,l] <- t(kweightshat)%*%
+          pnorm((x[i,j]-mu[j,z])/sigma[j,z], mean=sampleOfG, sd=h)
+      }
     }
-    sampleOfG <- sampleOfG[-1]
-    
-    aux_fun <- function(para) {solve_column_g(K,n,x,para,sampleOfG,mu,sigma)}
-    res <- lapply(1:K, aux_fun)
-    for (z in 1:K){
-      G[,j,z] <- res[[z]][,1]
-      g[,j,z] <- res[[z]][,2]
-    }
-    
-    # for (z in 1:K){
-    #   res <- solve_column_g(K,n,x,z,sampleOfG,mu,sigma)
-    #   G[,j,z] <-  res[,1]
-    #   g[,j,z] <- res[,2]
-    # }
-    
-    
   }
+  return( solution)
+}
+across_dimensions <- function(j,K,n,x,mu,sigma,km){
+  sampleOfG <- NA
+  for(z in 1:K){
+    sigma[j,z] <- sd(x[km$cluster==z,j])
+    sampleOfG <- c(sampleOfG, (x[km$cluster==z,j]-mu[j,z])/sigma[j,z])
+  }
+  sampleOfG <- sampleOfG[-1]
+  
+  # res <- mclapply(
+  #   1:K, 
+  #   function(para) {solve_column_g(K,n,x,para,sampleOfG,mu,sigma,j)}, 
+  #   mc.cores = numCores
+  # )
+  res <- mclapply(
+    1:K,
+    solve_column_g,
+    mc.cores = 17,
+    K= K,
+    n = n,
+    x = x,
+    sampleOfG = sampleOfG,
+    mu = mu,
+    sigma = sigma,
+    j = j
+  )
+  res_format <- array(dim = c(K,n,2))
+  for (z in 1:K){
+    res_format[z,,] <- res[[z]]
+  }
+  return(res_format)
+}
+
+across_dimensions_aux <- function (param){across_dimensions(param,K,n,x,mu,sigma,km)}
+
+time_sup_parallel <- system.time(
+  result <- mclapply(1:d,across_dimensions_aux, mc.cores = numCores_2)
 )
-print('serial time')
-print(time_parallel)
+for(i in 1:d){
+  G[,i,] <- result[[i]][,,1]
+  g[,i,] <- result[[i]][,,2]
+}
 
 
-# for(j in 1:d){
-#   print("current dimension")
-#   print (j)
-#   sampleOfG <- NA
-#   for(z in 1:K){
-#     sigma[j,z] <- sd(x[km$cluster==z,j])
-#     sampleOfG <- c(sampleOfG, (x[km$cluster==z,j]-mu[j,z])/sigma[j,z])
-#   }
-#   sampleOfG <- sampleOfG[-1]
-#   res <- array(dim = c(K,n,2))
-#   
-#   for(z in 1:K){
-#   # res <- foreach(z=1:K, .combine=mbind)%do%{
-#     
-#     h <- bw.nrd(sampleOfG)
-#     M <- rbind(rep(1,length(sampleOfG)), sampleOfG, sampleOfG^2)
-#     Amat <- cbind(t(M),diag(1,length(sampleOfG)))
-#     bvec <- c(1,0,1-h^2,rep(0,length(sampleOfG)))
-#     dvec <- rep(0,length(sampleOfG))
-#     Dmat <- diag(2,length(sampleOfG))
-#     kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution # 'k' like kernel
-#     
-#     for(i in 1:n){
-#     # foreach(i=1:n, .combine=cbind)%do%{
-#       
-#       for(l in 1:2){
-#       # foreach(l=1:2, .combine=c)%dopar%{
-#         
-#         if ( l == 2){
-#           res[z,i,l] <- (1/sigma[j,z])*t(kweightshat)%*%
-#           dnorm(sampleOfG, mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
-#         }else{
-#           res[z,i,l] <- t(kweightshat)%*%
-#           pnorm((x[i,j]-mu[j,z])/sigma[j,z], mean=sampleOfG, sd=h)
-#         }
-#         res
-#       }
+# time_parallel <- system.time(
+#   for(j in 1:d){
+#     print("current dimension")
+#     print (j)
+#     sampleOfG <- NA
+#     for(z in 1:K){
+#       sigma[j,z] <- sd(x[km$cluster==z,j])
+#       sampleOfG <- c(sampleOfG, (x[km$cluster==z,j]-mu[j,z])/sigma[j,z])
+#     }
+#     sampleOfG <- sampleOfG[-1]
+# 
+#     aux_fun <- function(para) {solve_column_g(K,n,x,para,sampleOfG,mu,sigma,j)}
+#     res <- mclapply(1:K, aux_fun, mc.cores = numCores)
+# 
+#     for (z in 1:K){
+#       G[,j,z] <- res[[z]][,1]
+#       g[,j,z] <- res[[z]][,2]
 #     }
 #   }
-#   G[,j,] <-  t(res[,,1])
-#   g[,j,] <- t(res[,,2])
-# }
-
-  
-  
-
+# )
+# print('parallel time, super parallel')
+# print(time_parallel)
+# print(time_sup_parallel)
+# print(g[503,,])

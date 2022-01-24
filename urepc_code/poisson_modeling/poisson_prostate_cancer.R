@@ -12,6 +12,7 @@ names = c(
 #read the data and combine it. 
 data <- NULL
 for(name in names){
+  genes <- as.matrix(read.csv(name)[,c(1)])
   aux_data <- as.matrix(read.csv(name)[,c(2,3,4,5)])
   if (is.null(data)){
     data <- aux_data
@@ -19,7 +20,7 @@ for(name in names){
     data <- cbind(data,aux_data)
   }
 }
-
+rownames(data) <- genes
 conds <- c(
   "C42",
   "C42B",

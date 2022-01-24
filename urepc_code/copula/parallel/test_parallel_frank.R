@@ -4,8 +4,93 @@ findOutliers <- function(data,tol){
   is.outlier <- (apply(where,1,sum)>=1)
   is.outlier
 }
+solve_column_g <- function(K,n,x,z,sampleOfG,mu,sigma,j){
+  solution <- array(dim = c(n,2))
+  h <- bw.nrd(sampleOfG)
+  M <- rbind(rep(1,length(sampleOfG)), sampleOfG, sampleOfG^2)
+  Amat <- cbind(t(M),diag(1,length(sampleOfG)))
+  bvec <- c(1,0,1-h^2,rep(0,length(sampleOfG)))
+  dvec <- rep(0,length(sampleOfG))
+  Dmat <- diag(2,length(sampleOfG))
+  kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution # 'k' like kernel
+  
+  for(i in 1:n){
+    for(l in 1:2){
+      if ( l == 2){
+        solution[i,l] <- (1/sigma[j,z])*t(kweightshat)%*%
+          dnorm(sampleOfG, mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
+      }else{
+        solution[i,l] <- t(kweightshat)%*%
+          pnorm((x[i,j]-mu[j,z])/sigma[j,z], mean=sampleOfG, sd=h)
+      }
+    }
+  }
+  return( solution)
+}
+across_dimensions <- function(j,K,n,x,mu,sigma,km){
+  sampleOfG <- NA
+  for(z in 1:K){
+    sigma[j,z] <- sd(x[km$cluster==z,j])
+    sampleOfG <- c(sampleOfG, (x[km$cluster==z,j]-mu[j,z])/sigma[j,z])
+  }
+  sampleOfG <- sampleOfG[-1]
+  res <- mclapply(
+    1:K,
+    solve_column_g,
+    mc.cores = 17,
+    K= K,
+    n = n,
+    x = x,
+    sampleOfG = sampleOfG,
+    mu = mu,
+    sigma = sigma,
+    j = j
+  )
+  res_format <- array(dim = c(K,n,2))
+  for (z in 1:K){
+    res_format[z,,] <- res[[z]]
+  }
+  return(res_format)
+}
 
 
+parallel_fun_1 <- function (xtilde,n,j,z,x,mu,sigma){
+  solution <- array(dim = c(n,2))
+  h <- bw.nrd(xtilde[,j])
+  M <- rbind(rep(1,length(xtilde[,j])), xtilde[,j], xtilde[,j]^2)
+  Amat <- cbind(t(M),diag(1,n))
+  bvec <- c(1,0,1-h^2,rep(1e-17,n)) 
+  dvec <- rep(0,n)
+  Dmat <- diag(2,n)
+  
+  kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution
+  
+  for(i in 1:n) solution[i,2] <- (1/sigma[j,z])*t(kweightshat)%*%
+    dnorm(xtilde[,j], mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
+  for(i in 1:n) solution[i,1] <- t(kweightshat)%*%
+    pnorm((x[i,j]-mu[j,z])/sigma[j,z], mean=xtilde[,j], sd=h)
+  
+  return( solution)
+}
+
+parallel_fun_2 <- function (xtilde,n,x,mu,sigma,z,d,K){
+  res <- mclapply(
+    1:d,
+    parallel_fun_1,
+    mc.cores = 17,
+    n = n,
+    x = x,
+    xtilde = xtilde,
+    mu = mu,
+    sigma = sigma,
+    z = z
+  )
+  res_format <- array(dim = c(d,n,2))
+  for (z in 1:d){
+    res_format[z,,] <- res[[z]]
+  }
+  return(res_format)
+}
 ## It is assumed that the support of G is (-\infty,+\infty) and that
 ## G is centered at 0. The copulas must have only one parameter.
 ## effInterval is the effective support of G (from a computer
@@ -129,63 +214,37 @@ EMalgo <- function(
   if(debug){
     print("finished selecting copula\n Starting with G initialization")
   }
+  
   for(j in 1:d){
-    sampleOfG <- NA
     for(z in 1:K){
       sigma[j,z] <- sd(x[km$cluster==z,j])
-      sampleOfG <- c(sampleOfG, (x[km$cluster==z,j]-mu[j,z])/sigma[j,z])
     }
-    sampleOfG <- sampleOfG[-1]
-    xtildetrack[,j,1] <- sampleOfG
-    for(z in 1:K){
-      if (debug){
-        cat("\n Initializing G&g.\n K: ",z,"\n d: ",j,'\n')
-      }
-      h <- bw.nrd(sampleOfG)
-      if((method=="naive-stochastic")|(method=="naive-deterministic")){ 
-        for(i in 1:n) G[i,j,z] <- mean( pnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                              mean=sampleOfG, sd=h) )
-        for(i in 1:n) g[i,j,z] <- (1/sigma[j,z])*mean( dnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                                             mean=sampleOfG, sd=h) ) 
-      }else if((method=="new-stochastic")|(method=="new-deterministic")){ 
-        M <- rbind(rep(1,length(sampleOfG)), sampleOfG, sampleOfG^2)
-        ## MMtinv <- solve(M%*%t(M),diag(rep(1,3))) # explicit solution whenever
-        ## kweightshat <- t(M)%*%MMtinv%*%c(1,0,1-h^2) # p>=0 not taken into account
-        Amat <- cbind(t(M),diag(1,length(sampleOfG)))
-        bvec <- c(1,0,1-h^2,rep(0,length(sampleOfG)))
-        dvec <- rep(0,length(sampleOfG))
-        Dmat <- diag(2,length(sampleOfG))
-        kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution # 'k' like kernel
-        for(i in 1:n) g[i,j,z] <- (1/sigma[j,z])*t(kweightshat)%*%
-          dnorm(sampleOfG, mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
-        for(i in 1:n) G[i,j,z] <- t(kweightshat)%*%
-          pnorm((x[i,j]-mu[j,z])/sigma[j,z], mean=sampleOfG, sd=h)
-      }else{ # obsolete
-        for(i in 1:n) G[i,j,z] <- .5*mean( pnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                                 mean=sampleOfG, sd=h) ) + .5 -
-            .5*mean( pnorm((-x[i,j]+mu[j,z])/sigma[j,z],
-                           mean=sampleOfG, sd=h) )
-        for(i in 1:n) g[i,j,z] <- .5*(1/sigma[j,z])*mean( dnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                                                mean=sampleOfG, sd=h) ) +
-            .5*(1/sigma[j,z])*mean( dnorm((-x[i,j]+mu[j,z])/sigma[j,z],
-                                          mean=sampleOfG, sd=h) )
-      }
-    }
+  }
+      
+  across_dimensions_aux <- function (param){across_dimensions(param,K,n,x,mu,sigma,km)}
+  time_init <- system.time(
+    result <- mclapply(1:d,across_dimensions_aux, mc.cores = numCores_2)
+  )
+  for(i in 1:d){
+    G[,i,] <- result[[i]][,,1]
+    g[,i,] <- result[[i]][,,2]
   }
   
   if(debug){
-    print("finished setting G and g")
+    print("finished setting G and g, time taken :")
+    print(time_init)
   }
   for(z in 1:K){
+    print(paste("processing copula: ", z))
     if(copulaFamilies[z]=="indep"){
       cop[[z]]@parameters <- theta[z] <- 0 # theta[,z]
     }else{
       theta[z] <- fitCopula(cop[[z]], pobs(x[km$cluster==z,]),
-                             method="itau")@estimate #theta[,z]
+                            method="itau")@estimate #theta[,z]
       cop[[z]]@parameters <- theta[z] #theta[,z]
     }
   }
-  
+  print ("finished setting up copulas")
   objectiveValue <- 0
   mutrack[,,1] <- mu
   sigmatrack[,,1] <- sigma
@@ -277,89 +336,27 @@ EMalgo <- function(
     ## Compute the "G" 
     newG1 <- newG2 <- newg1 <- newg2 <- array(dim=c(n,d,K))
     newG <- newg <- array(dim=c(n,d,K))
-    for(z in 1:K){
-      for(j in 1:d){
-        if(method=="naive-stochastic"){
-          h <- bw.nrd(xtilde[,j])
-          for(i in 1:n) newG[i,j,z] <- mean( pnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                                   mean=xtilde[,j],
-                                                   sd=h) )
-          for(i in 1:n) newg[i,j,z] <- mean( dnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                                   mean=xtilde[,j],
-                                                   sd=h) )/sigma[j,z]
-        }else if(method=="new-stochastic"){
-          h <- bw.nrd(xtilde[,j])
-          M <- rbind(rep(1,length(xtilde[,j])), xtilde[,j], xtilde[,j]^2)
-          Amat <- cbind(t(M),diag(1,n))
-          bvec <- c(1,0,1-h^2,rep(1e-17,n)) # If tolerance is exactly 0, a negative
-          # solution can be produced. I guess this is because
-          # simulatenous and possibly contradicting constraints
-          # can compete and the implementation considers a
-          # solution has been achieved when within a certain
-          # tolerance, even if the numbers are negative.
-          dvec <- rep(0,n)
-          Dmat <- diag(2,n)
-          
-          if(debug){
-            cat("starting to solve the matrix K ",z," d ",j, '\n')
-          }
-          
-          kweightshat <- solve.QP(Dmat, dvec, Amat, bvec, meq=3)$solution
-          
-          if(debug){
-            cat("finished to solve the matrix K ",z," d ",j,'\n')
-          }
-          
-          for(i in 1:n) newg[i,j,z] <- (1/sigma[j,z])*t(kweightshat)%*%
-            dnorm(xtilde[,j], mean=(x[i,j]-mu[j,z])/sigma[j,z], sd=h)
-          for(i in 1:n) newG[i,j,z] <- t(kweightshat)%*%
-            pnorm((x[i,j]-mu[j,z])/sigma[j,z], mean=xtilde[,j], sd=h)
-        }else if(method=="naive-deterministic"){
-          h <- bw.nrd(x[,j]) # choix de h non resolu dans ce cas.
-          tmp <- matrix(nrow=n, ncol=K) # approche Benaglia et al 2009 ne va pas
-          for(i in 1:n){ # non plus car l'estimateur n'est pas une densite
-            for(k in 1:K){ # (integrale != 1) et donc on a pas une c.d.f. : pbm
-              tmp[i,k] <- sum( dnorm(  (x[,j]-mu[j,k])/sigma[j,k], # pour la 
-                                       mean=(x[i,j]-mu[j,z])/sigma[j,z], # copule.
-                                       sd=h  )*hzx[,k] )
-            }
-            newg[i,j,z] <- sum(tmp[i,])/n/sigma[j,z]
-          }
-          tmp <- matrix(nrow=n, ncol=K)
-          for(i in 1:n){
-            for(k in 1:K){
-              tmp[i,k] <- sum( pnorm( (x[i,j]-mu[j,z])/sigma[j,z],
-                                      mean=(x[,j]-mu[j,k])/sigma[j,k],
-                                      sd=h  )*hzx[,k] )
-            }
-            newG[i,j,z] <- sum(tmp[i,])/n
-          }
-        }else if(method=="new-deterministic"){
-          h <- bw.nrd(x[,j])
-          print("not yet implemented")
-        }else{ # obsolete
-          h <- bw.nrd(xtilde[,j])
-          for(i in 1:n) newG1[i,j,z] <- mean( pnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                                    mean=xtilde[,j],
-                                                    sd=h) )
-          for(i in 1:n) newG2[i,j,z] <- mean( pnorm((-x[i,j]+mu[j,z])/sigma[j,z],
-                                                    mean=xtilde[,j],
-                                                    sd=h) )
-          for(i in 1:n) newg1[i,j,z] <- mean( dnorm((x[i,j]-mu[j,z])/sigma[j,z],
-                                                    mean=xtilde[,j],
-                                                    sd=h) )/sigma[j,z]
-          for(i in 1:n) newg2[i,j,z] <- mean( dnorm((-x[i,j]+mu[j,z])/sigma[j,z],
-                                                    mean=xtilde[,j],
-                                                    sd=h) )/sigma[j,z]
-          ## symmetrization
-          newg[,j,z] <- (newg1[,j,z]+newg2[,j,z])/2
-          newG[,j,z] <- (newG1[,j,z]+1-newG2[,j,z])/2
-        }
-      }
+    time_update_g <- system.time(result <- mclapply(
+      1:K,
+      parallel_fun_2, 
+      mc.cores = numCores_2,
+      xtilde = xtilde,
+      n = n,
+      x = x,
+      mu = mu,
+      sigma = sigma,
+      d = d,
+      K
+    ))
+    for(i in 1:K){
+      newG[,,i] <- t(result[[i]][,,1])
+      newg[,,i] <- t(result[[i]][,,2])
     }
     
+    
     if(debug){
-      print("finished updating G 2nd time")
+      print("finished updating G 2nd time, time taken")
+      print(time_update_g)
     }
     
     ## Update copulas parameters
@@ -401,8 +398,13 @@ EMalgo <- function(
         #                            z=z,maximum=TRUE)$maximum
         # }
         # else{
-          try(newTheta[z] <- optim(theta[z],optimFoo,
-                                    z=z,method="BFGS")$par)
+        try(newTheta[z] <- optim(
+          theta[z],
+          optimFoo,
+          z=z,
+          method="L-BFGS-B",
+          lower = 0
+          )$par)
         # }
         cop[[z]]@parameters <- theta[z] # cop[[z]]@parameters <- theta[,z]
       }
@@ -457,124 +459,6 @@ EMalgo <- function(
   )
 }
 
-
-## Algo for parametric Gaussian model 
-EMalgoParamGauss <- function(data, nbit, K=3){
-  
-  x <- data
-  n <- nrow(x)
-  d <- ncol(x)
-  km <- kmeans(x,centers=K)
-  mu <- t(km$centers)
-  pz <- km$size/nrow(x)
-  covestimateBG <- array(dim=c(d,d,K)) # By Group
-  covestimate <- matrix(nrow=d,ncol=d) # mean of the covariance matrices
-  sigma <- array(dim=c(d,K)) # standard deviation and NOT variance!
-  theta <- numeric(K)
-  mutrack <- sigmatrack <- array(dim=c(d,K,(nbit+1)))
-  thetatrack <- pztrack <- array(dim=c(K,(nbit+1)))
-  
-  for(z in 1:K){
-    covestimateBG[,,z] <- cov(x[km$cluster==z,])
-    sigma[,z] <- sqrt(diag(covestimateBG[,,z]))
-    theta[z] <- covestimateBG[1,2,z]/prod(sigma[,z])
-  }
-  covestimate <- apply(covestimateBG,c(1,2),mean) 
-  
-  objectiveValue <- 0
-  mutrack[,,1] <- mu
-  sigmatrack[,,1] <- sigma
-  thetatrack[,1] <- theta
-  pztrack[,1] <- pz
-  
-  ## loop
-  for(t in 1:nbit){
-    
-    ## 0. Calcul de h(z|x^i), x^i multivariate (OK)
-    num <- hzx <- matrix(nrow=n, ncol=K)
-    denom <- numeric(n)
-    for(z in 1:K){
-      for(i in 1:n){
-        num[i,z] <- dmvnorm(x[i,],mu[,z],covestimateBG[,,z])*pz[z] # covestimate??
-      }
-    }
-    for(i in 1:n){
-      denom[i] <- sum(num[i,],na.rm=TRUE)
-      for(z in 1:K){
-        hzx[i,z] <- if(denom[i]==0) 1/K else num[i,z]/denom[i]
-      }
-    }
-    
-    ## 1. Update pi_z for each z (OK)
-    newpz <- numeric(K)
-    for(z in 1:K){
-      newpz[z] <- mean(hzx[,z],na.rm=TRUE)
-    }
-    
-    ## 2. Update mu_{jz} for each j=1,...,d, z=1,...,K (OK)
-    newmu <- matrix(nrow=d,ncol=K)
-    for(z in 1:K){
-      for(j in 1:d){
-        newmu[j,z] <- sum(x[,j]*hzx[,z])/sum(hzx[,z])
-      }
-    }
-    
-    ## 3. Update covariance matrix
-    newcovestimateBG <- array(dim=c(d,d,K))
-    newcovestimate <- matrix(nrow=d,ncol=d)
-    newsigma <- array(dim=c(d,K))
-    newtheta <- numeric(K)
-    tempmat <- array(dim=c(n,d,d,K))
-    for(z in 1:K){
-      for(i in 1:n){
-        tempmat[i,,,z] <- (x[i,]-newmu[,z])%*%t(x[i,]-newmu[,z])*hzx[i,z]
-      }
-      for(j1 in 1:d){
-        for(j2 in 1:d){
-          newcovestimateBG[j1,j2,z] <- sum(tempmat[,j1,j2,z])/sum(hzx[,z])
-        }
-      }
-      newsigma[,z] <- sqrt(diag(newcovestimateBG[,,z]))
-      newtheta[z] <- newcovestimateBG[1,2,z]/prod(newsigma[,z])
-    }
-    for(j1 in 1:d){
-      for(j2 in 1:d){
-        newcovestimate[j1,j2] <- sum(newcovestimateBG[j1,j2,]*apply(hzx,2,sum))/n
-      }
-    }
-    
-    ## Compute the objective value
-    term1 <- term2 <- term3 <- term4 <- matrix(nrow=n,ncol=K)
-    for(z in 1:K){
-      for(i in 1:n){
-        term1[i,z] <- log(dmvnorm(x[i,],
-                                  mu[,z],covestimateBG[,,z]))*hzx[i,z] # covestimate??
-        term3[i,z] <- log(pz[z])*hzx[i,z]
-        term4[i,z] <- log(hzx[i,z])*hzx[i,z]
-      }
-    }
-    
-    objectiveValue <- c(objectiveValue,sum(term1+term3-term4,na.rm=TRUE))
-    print("objective Value:")
-    print(objectiveValue[length(objectiveValue)])
-    
-    ## Updates the programme variables
-    mu <- mutrack[,,t+1] <- newmu
-    covestimateBG <- newcovestimateBG
-    covestimate <- newcovestimate
-    sigma <- sigmatrack[,,t+1] <- newsigma
-    theta <- thetatrack[,t+1] <- newtheta
-    pz <- pztrack[,t+1] <- newpz
-  }
-  
-  return( list(mu=mutrack,covestimate=covestimate,pz=pztrack,
-               hzx=hzx,sigma=sigmatrack,theta=thetatrack,
-               Ovalue=objectiveValue[-1] ) )
-}
-
-
-
-
 ## Laplace distribution
 dlaplace <- function(x,b){
   exp(-abs(x)/b)/2/b
@@ -606,11 +490,14 @@ rlaplace <- function(n,b){
 
 library(copula)
 library(quadprog)
+library(parallel)
 
+numCores <- 15
+numCores_2 <- 1
 copulaName <- "frank"
 clusterSize <- 3
 sampleSize <- 2000
-nb_it_em <- 5
+nb_it_em <- 10
 method <- "new-stochastic"
 
 names = c(
@@ -629,7 +516,7 @@ for(name in names){
   }else{
     data <- cbind(data,aux_data)
   }
-  break
+  # break
 }
 
 data <- data[sample(1:nrow(data), sampleSize, replace = FALSE),]
