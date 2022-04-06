@@ -1,0 +1,15 @@
+#!/bin/bash
+
+while getopts c:s:l: flag
+do
+    case "${flag}" in
+	c) center=${OPTARG};;
+	s) std=${OPTARG};;
+	l) line=${OPTARG};;
+    esac
+done
+echo center $center
+echo std $std
+echo line $line
+
+Rscript code/sc_rep_initialize.R "centers='$center'" "sigma='$std'" "index='$line'"

@@ -1,0 +1,12 @@
+#!/bin/bash
+
+while getopts m: flag
+do
+    case "${flag}" in
+	m) model=${OPTARG};;
+    esac
+done
+
+echo model $model
+
+Rscript code/read_from_csv.R "name_model='$model'"

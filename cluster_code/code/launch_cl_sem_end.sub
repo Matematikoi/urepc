@@ -1,0 +1,13 @@
+#!/bin/bash
+
+echo index,loglik,restart,size > results/sem_results_2/loglik_sem_2.csv
+
+for idx in $(seq 1 $(cat data/sem/selected_models.csv | wc -l)); 
+do
+	line=$idx
+	line+=p
+	models=$(sed -n $line data/sem/selected_models.csv)
+	echo $line $models
+	sbatch -A pccr -N 1 -n 1 --time=240:00:00 -o results/sem_results_2/out_%j.out ./code/launch_r_cl_sem_end.sub -m $models
+	#sh ./code/launch_r_cl_sem.sub -c $center -s $std -l $line
+done

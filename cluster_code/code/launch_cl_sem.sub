@@ -1,0 +1,13 @@
+#!/bin/bash
+
+echo index,loglik,restart,size > results/sem/loglik_sem.csv
+
+for idx in $(seq 1 $(cat data/sem/mean.txt | wc -l)); 
+do
+	line=$idx
+	line+=p
+	center=$(sed -n $line data/sem/mean.txt)
+	std=$(sed -n $line data/sem/std.txt)
+	sbatch -A standby -N 1 -n 1 --time=00:60:00 -o results/sem/out_%j.out ./code/launch_r_cl_sem.sub -c $center -s $std -l $line
+	#sh ./code/launch_r_cl_sem.sub -c $center -s $std -l $line
+done
