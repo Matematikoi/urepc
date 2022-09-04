@@ -123,7 +123,7 @@ EMalgo <- function(
       
       
       # RUN
-      # system(command)
+      system(command)
       
       
     }

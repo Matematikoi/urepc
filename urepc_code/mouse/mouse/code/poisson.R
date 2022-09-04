@@ -2,41 +2,23 @@ library(HTSCluster)
 library(HTSFilter)
 library(Biobase)
 
-
-names = c(
-  "../cluster_number_testing/data/1_5_CPMcutoff_suffix_1.csv",
-  "../cluster_number_testing/data/1_5_CPMcutoff_suffix_2.csv",
-  "../cluster_number_testing/data/1_5_CPMcutoff_suffix_3.csv"
-)
+set.seed(123)
+name = "data/raw_counts_mouse.csv"
 
 #read the data and combine it. 
-data <- NULL
-for(name in names){
-  genes <- as.matrix(read.csv(name)[,c(1)])
-  aux_data <- as.matrix(read.csv(name)[,c(2,3,4,5)])
-  if (is.null(data)){
-    data <- aux_data
-  }else{
-    data <- cbind(data,aux_data)
-  }
-}
+data <- read.csv(name, row.names = 1, header= TRUE)
+
 max_index = 35
-rownames(data) <- genes
 conds <- c(
-  "C42",
-  "C42B",
-  "LNCAP",
-  "MR49F",
-  "C42",
-  "C42B",
-  "LNCAP",
-  "MR49F",
-  "C42",
-  "C42B",
-  "LNCAP",
-  "MR49F"
+  "kidney",
+  "kidney",
+  "liver",
+  "liver",
+  "lung",
+  "lung",
+  "short_interstine",
+  "short_interstine"
 )
-data <- floor(data)
 
 data_filter <- HTSFilter(data, conds, norm="TMM")
 
@@ -57,4 +39,6 @@ time_end <- Sys.time();
 #     row.names = row.names(data_filter[["filteredData"]])
 #   )
 # }
+# saveRDS(pmm, file = "results_poisson/poisson_info.RDS")
+
 # write.csv(pmm$all.results$`g=12`$labels, row.names = selectedGenes, file = 'results/pmm_raw_12.csv')

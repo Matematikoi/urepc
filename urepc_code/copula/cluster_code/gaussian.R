@@ -159,7 +159,7 @@ EMalgo <- function(
     if(copulaFamilies[z]=="indep"){
       cop[[z]]@parameters <- theta[,z] <- 0 #theta[z]
     }else{
-      theta[,z] <- fitCopula(cop[[z]], pobs(x[km$cluster==z,]),
+    theta[,z] <- fitCopula(cop[[z]], pobs(x[km$cluster==z,]),
                              method="itau")@estimate
       cop[[z]]@parameters <- theta[,z] # theta[z]
     }
